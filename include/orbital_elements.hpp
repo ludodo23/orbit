@@ -53,6 +53,8 @@
 #include <stdexcept>
 #include <string>
 
+#define ORBIT_VERSION "0.1.0"
+ 
 namespace orb {
 
 // ============================================================================
