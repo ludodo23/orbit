@@ -8,7 +8,7 @@ from conan.tools.build import check_min_cppstd
 
 
 class OrbitConan(ConanFile):
-    name = "frames"
+    name = "orbit"
     settings = "os", "arch", "compiler", "build_type"
     exports_sources = "include/*", "tests/*"
     no_copy_source = True
