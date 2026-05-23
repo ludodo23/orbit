@@ -25,7 +25,7 @@ class OrbitConan(ConanFile):
         self.test_requires("catch2/3.4.0")
 
     def validate(self):
-        check_min_cppstd(self, 14)
+        check_min_cppstd(self, 17)
 
     def layout(self):
         cmake_layout(self)

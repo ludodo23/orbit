@@ -1,6 +1,8 @@
 find_package(Catch2 REQUIRED)
 
-add_executable(test_orbit test_orbital_elements.cpp)
+add_executable(test_orbit
+    test_orbital_elements.cpp
+)
 
 target_link_libraries(test_orbit PRIVATE
     orbit

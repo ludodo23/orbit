@@ -25,14 +25,14 @@ using Catch::Approx;
 // Constants & helpers
 // ============================================================================
 
-static constexpr double MU   = 3.986004418e14;  // Earth, WGS-84 [m³/s²]
+static constexpr double MU   = 3.986004418e14;  // Earth, WGS-84 [m³/s^2]
 static constexpr double TOL_R     = 1e-3;        // position tolerance [m]
 static constexpr double TOL_V     = 1e-7;        // velocity tolerance [m/s]
 static constexpr double TOL_ANGLE = 1e-9;        // angle tolerance [rad]
 static constexpr double TOL_A     = 1e-3;        // semi-major axis [m]
 static constexpr double TOL_E     = 1e-10;       // eccentricity [-]
 
-// Circular angular distance — handles 0 ↔ 2π aliasing
+// Circular angular distance — handles 0 / 2pi aliasing
 inline double ang_dist(double a, double b) {
     double d = std::abs(a - b);
     if (d > PI<double>) d = TWO_PI<double> - d;
@@ -86,7 +86,7 @@ static const COE<double> SSO {
 // Section 1 — Kepler equation
 // ============================================================================
 
-TEST_CASE("Kepler equation: M → E → ν → M round-trip", "[kepler]") {
+TEST_CASE("Kepler equation: M to E to nu to M round-trip", "[kepler]") {
     // Tabulated (e, M) pairs covering edge cases
     auto [e, M] = GENERATE(table<double,double>({
         {0.0,  0.0},  {0.0,  3.0},
@@ -97,28 +97,30 @@ TEST_CASE("Kepler equation: M → E → ν → M round-trip", "[kepler]") {
     }));
 
     CAPTURE(e, M);
-    const double E  = mean_to_eccentric_anomaly(M, e);
-    const double nu = eccentric_to_true_anomaly(E, e);
-    const double M2 = true_to_mean_anomaly(nu, e);
+    double E  = mean_to_eccentric_anomaly(M, e);
+    double nu = eccentric_to_true_anomaly(E, e);
+    double M2 = true_to_mean_anomaly(nu, e);
     REQUIRE(ang_dist(M2, M) < 1e-11);
 }
 
-TEST_CASE("Eccentric → true → eccentric anomaly round-trip", "[kepler]") {
+TEST_CASE("Eccentric to true to eccentric anomaly round-trip", "[kepler]") {
     auto [e, E_in] = GENERATE(table<double,double>({
         {0.0, 0.0}, {0.3, 1.0}, {0.7, 2.5}, {0.95, 0.5}
     }));
 
-    CAPTURE(e, E_in);
-    const double nu  = eccentric_to_true_anomaly(E_in, e);
-    const double E2  = true_to_eccentric_anomaly(nu, e);
-    REQUIRE(ang_dist(E2, wrap_0_2pi(E_in)) < 1e-12);
+    // CAPTURE(e);
+    // CAPTURE(E_in);
+    const double nu  = eccentric_to_true_anomaly<double>(E_in, e);
+    const double E2  = true_to_eccentric_anomaly<double>(nu, e);
+    double E_in_wrapped = wrap_0_2pi<double>(E_in);
+    REQUIRE(ang_dist(E2, E_in_wrapped) < 1e-12);
 }
 
 // ============================================================================
-// Section 2 — COE ↔ Cartesian
+// Section 2 — COE / Cartesian
 // ============================================================================
 
-TEST_CASE("COE → Cart → COE round-trip", "[coe][cart]") {
+TEST_CASE("COE to Cart to COE round-trip", "[coe][cart]") {
     auto coe = GENERATE(
         COE<double>{ISS},
         COE<double>{MOLNIYA},
@@ -131,7 +133,7 @@ TEST_CASE("COE → Cart → COE round-trip", "[coe][cart]") {
     require_coe_eq(coe2, coe);
 }
 
-TEST_CASE("Cart → COE → Cart round-trip", "[coe][cart]") {
+TEST_CASE("Cart to COE to Cart round-trip", "[coe][cart]") {
     // Build reference cart from ISS COE, then verify the back-and-forth
     const auto cart_ref = coe_to_cart(ISS, MU);
     const auto coe2     = cart_to_coe(cart_ref, MU);
@@ -139,8 +141,8 @@ TEST_CASE("Cart → COE → Cart round-trip", "[coe][cart]") {
     require_cart_eq(cart2, cart_ref);
 }
 
-TEST_CASE("COE→Cart: vis-viva sanity check", "[coe][cart][physics]") {
-    // |v|² = μ(2/r − 1/a)
+TEST_CASE("COEtoCart: vis-viva sanity check", "[coe][cart][physics]") {
+    // |v|^2 = μ(2/r − 1/a)
     auto coe = GENERATE(
         COE<double>{ISS},
         COE<double>{MOLNIYA},
@@ -153,7 +155,7 @@ TEST_CASE("COE→Cart: vis-viva sanity check", "[coe][cart][physics]") {
     REQUIRE(v2 == Approx(v2_expected).epsilon(1e-9));
 }
 
-TEST_CASE("COE→Cart: angular momentum magnitude matches h=√(μp)", "[coe][cart][physics]") {
+TEST_CASE("COEtoCart: angular momentum magnitude matches h=sqrt(mu*p)", "[coe][cart][physics]") {
     const auto c = coe_to_cart(ISS, MU);
     const double hx = c.y*c.vz - c.z*c.vy;
     const double hy = c.z*c.vx - c.x*c.vz;
@@ -164,10 +166,10 @@ TEST_CASE("COE→Cart: angular momentum magnitude matches h=√(μp)", "[coe][ca
 }
 
 // ============================================================================
-// Section 3 — COE ↔ Equinoctial (EQN)
+// Section 3 — COE / Equinoctial (EQN)
 // ============================================================================
 
-TEST_CASE("COE ↔ EQN round-trip", "[coe][eqn]") {
+TEST_CASE("COE / EQN round-trip", "[coe][eqn]") {
     auto coe = GENERATE(
         COE<double>{ISS},
         COE<double>{MOLNIYA},
@@ -177,13 +179,13 @@ TEST_CASE("COE ↔ EQN round-trip", "[coe][eqn]") {
     require_coe_eq(eqn_to_coe(coe_to_eqn(coe)), coe);
 }
 
-TEST_CASE("EQN: h²+k² == e²", "[eqn][invariant]") {
+TEST_CASE("EQN: h^2+k^2 == e^2", "[eqn][invariant]") {
     auto coe = GENERATE(COE<double>{ISS}, COE<double>{MOLNIYA});
     const auto eqn = coe_to_eqn(coe);
     REQUIRE(eqn.h*eqn.h + eqn.k*eqn.k == Approx(coe.e * coe.e).epsilon(1e-12));
 }
 
-TEST_CASE("EQN: near-circular orbit (e→0) stays regular", "[eqn][singularity]") {
+TEST_CASE("EQN: near-circular orbit (eto0) stays regular", "[eqn][singularity]") {
     COE<double> circ{7000e3, 1e-6, 0.5, 1.0, 0.3, 1.5};
     const auto eqn  = coe_to_eqn(circ);
     const auto coe2 = eqn_to_coe(eqn);
@@ -194,10 +196,10 @@ TEST_CASE("EQN: near-circular orbit (e→0) stays regular", "[eqn][singularity]"
 }
 
 // ============================================================================
-// Section 4 — COE ↔ Modified Equinoctial (MEE)
+// Section 4 — COE / Modified Equinoctial (MEE)
 // ============================================================================
 
-TEST_CASE("COE ↔ MEE round-trip", "[coe][mee]") {
+TEST_CASE("COE / MEE round-trip", "[coe][mee]") {
     auto coe = GENERATE(
         COE<double>{ISS},
         COE<double>{MOLNIYA},
@@ -207,20 +209,20 @@ TEST_CASE("COE ↔ MEE round-trip", "[coe][mee]") {
     require_coe_eq(mee_to_coe(coe_to_mee(coe)), coe);
 }
 
-TEST_CASE("MEE: p == a(1-e²)", "[mee][invariant]") {
+TEST_CASE("MEE: p == a(1-e^2)", "[mee][invariant]") {
     auto coe = GENERATE(COE<double>{ISS}, COE<double>{MOLNIYA}, COE<double>{GEO});
     const auto mee = coe_to_mee(coe);
     const double p_expected = coe.a * (1.0 - coe.e * coe.e);
     REQUIRE(mee.p == Approx(p_expected).epsilon(1e-12));
 }
 
-TEST_CASE("MEE: f²+g² == e²", "[mee][invariant]") {
+TEST_CASE("MEE: f^2+g^2 == e^2", "[mee][invariant]") {
     auto coe = GENERATE(COE<double>{ISS}, COE<double>{MOLNIYA});
     const auto mee = coe_to_mee(coe);
     REQUIRE(mee.f*mee.f + mee.g*mee.g == Approx(coe.e * coe.e).epsilon(1e-12));
 }
 
-TEST_CASE("Cart ↔ MEE direct path round-trip", "[mee][cart]") {
+TEST_CASE("Cart / MEE direct path round-trip", "[mee][cart]") {
     auto coe = GENERATE(COE<double>{ISS}, COE<double>{MOLNIYA}, COE<double>{GEO});
     const auto cart_ref = coe_to_cart(coe, MU);
     const auto mee      = cart_to_mee(cart_ref, MU);
@@ -229,10 +231,10 @@ TEST_CASE("Cart ↔ MEE direct path round-trip", "[mee][cart]") {
 }
 
 // ============================================================================
-// Section 5 — COE ↔ Non-Singular Keplerian (NSK)
+// Section 5 — COE / Non-Singular Keplerian (NSK)
 // ============================================================================
 
-TEST_CASE("COE ↔ NSK round-trip", "[coe][nsk]") {
+TEST_CASE("COE / NSK round-trip", "[coe][nsk]") {
     auto coe = GENERATE(
         COE<double>{ISS},
         COE<double>{MOLNIYA},
@@ -242,30 +244,30 @@ TEST_CASE("COE ↔ NSK round-trip", "[coe][nsk]") {
     require_coe_eq(nsk_to_coe(coe_to_nsk(coe)), coe);
 }
 
-TEST_CASE("NSK: ex²+ey² == e²", "[nsk][invariant]") {
+TEST_CASE("NSK: ex^2+ey^2 == e^2", "[nsk][invariant]") {
     auto coe = GENERATE(COE<double>{ISS}, COE<double>{MOLNIYA});
     const auto nsk = coe_to_nsk(coe);
     REQUIRE(nsk.ex*nsk.ex + nsk.ey*nsk.ey == Approx(coe.e * coe.e).epsilon(1e-12));
 }
 
-TEST_CASE("NSK: ix²+iy² == tan²(i/2)", "[nsk][invariant]") {
+TEST_CASE("NSK: ix^2+iy^2 == tan^2(i/2)", "[nsk][invariant]") {
     auto coe = GENERATE(COE<double>{ISS}, COE<double>{SSO});
     const auto nsk = coe_to_nsk(coe);
     const double ti2 = std::tan(coe.i / 2.0);
     REQUIRE(nsk.ix*nsk.ix + nsk.iy*nsk.iy == Approx(ti2 * ti2).epsilon(1e-12));
 }
 
-TEST_CASE("NSK: u = omega + nu (mod 2π)", "[nsk][invariant]") {
+TEST_CASE("NSK: u = omega + nu (mod 2pi)", "[nsk][invariant]") {
     auto coe = GENERATE(COE<double>{ISS}, COE<double>{MOLNIYA});
     const auto nsk = coe_to_nsk(coe);
     REQUIRE(ang_dist(nsk.u, wrap_0_2pi(coe.omega + coe.nu)) < TOL_ANGLE);
 }
 
 // ============================================================================
-// Section 6 — COE ↔ Delaunay
+// Section 6 — COE / Delaunay
 // ============================================================================
 
-TEST_CASE("COE ↔ Delaunay round-trip", "[coe][delaunay]") {
+TEST_CASE("COE / Delaunay round-trip", "[coe][delaunay]") {
     auto coe = GENERATE(
         COE<double>{ISS},
         COE<double>{MOLNIYA},
@@ -275,25 +277,25 @@ TEST_CASE("COE ↔ Delaunay round-trip", "[coe][delaunay]") {
     require_coe_eq(delaunay_to_coe(coe_to_delaunay(coe, MU), MU), coe);
 }
 
-TEST_CASE("Delaunay: L = √(μa)", "[delaunay][invariant]") {
+TEST_CASE("Delaunay: L = sqrt(mu*a)", "[delaunay][invariant]") {
     auto coe = GENERATE(COE<double>{ISS}, COE<double>{MOLNIYA}, COE<double>{GEO});
     const auto del = coe_to_delaunay(coe, MU);
     REQUIRE(del.L == Approx(std::sqrt(MU * coe.a)).epsilon(1e-12));
 }
 
-TEST_CASE("Delaunay: G = L·√(1-e²)", "[delaunay][invariant]") {
+TEST_CASE("Delaunay: G = L*sqrt(1-e^2)", "[delaunay][invariant]") {
     auto coe = GENERATE(COE<double>{ISS}, COE<double>{MOLNIYA});
     const auto del = coe_to_delaunay(coe, MU);
     REQUIRE(del.G == Approx(del.L * std::sqrt(1.0 - coe.e*coe.e)).epsilon(1e-12));
 }
 
-TEST_CASE("Delaunay: H = G·cos(i)", "[delaunay][invariant]") {
+TEST_CASE("Delaunay: H = G*cos(i)", "[delaunay][invariant]") {
     auto coe = GENERATE(COE<double>{ISS}, COE<double>{SSO});
     const auto del = coe_to_delaunay(coe, MU);
     REQUIRE(del.H == Approx(del.G * std::cos(coe.i)).epsilon(1e-12));
 }
 
-TEST_CASE("Cart ↔ Delaunay round-trip", "[delaunay][cart]") {
+TEST_CASE("Cart / Delaunay round-trip", "[delaunay][cart]") {
     const auto cart_ref = coe_to_cart(ISS, MU);
     const auto del      = cart_to_delaunay(cart_ref, MU);
     const auto cart2    = delaunay_to_cart(del, MU);
@@ -301,10 +303,10 @@ TEST_CASE("Cart ↔ Delaunay round-trip", "[delaunay][cart]") {
 }
 
 // ============================================================================
-// Section 7 — COE ↔ Poincaré
+// Section 7 — COE / Poincaré
 // ============================================================================
 
-TEST_CASE("COE ↔ Poincaré round-trip", "[coe][poincare]") {
+TEST_CASE("COE / Poincare round-trip", "[coe][poincare]") {
     auto coe = GENERATE(
         COE<double>{ISS},
         COE<double>{MOLNIYA},
@@ -314,27 +316,27 @@ TEST_CASE("COE ↔ Poincaré round-trip", "[coe][poincare]") {
     require_coe_eq(poincare_to_coe(coe_to_poincare(coe, MU), MU), coe);
 }
 
-TEST_CASE("Poincaré: L = √(μa)", "[poincare][invariant]") {
+TEST_CASE("Poincare: L = sqrt(mu*a)", "[poincare][invariant]") {
     auto coe = GENERATE(COE<double>{ISS}, COE<double>{MOLNIYA}, COE<double>{GEO});
     const auto poi = coe_to_poincare(coe, MU);
     REQUIRE(poi.L == Approx(std::sqrt(MU * coe.a)).epsilon(1e-12));
 }
 
-TEST_CASE("Poincaré: xi²+eta² = 2(L−G)", "[poincare][invariant]") {
+TEST_CASE("Poincare: xi^2+eta^2 = 2(L-G)", "[poincare][invariant]") {
     auto coe = GENERATE(COE<double>{ISS}, COE<double>{MOLNIYA});
     const auto poi = coe_to_poincare(coe, MU);
     const auto del = coe_to_delaunay(coe, MU);
     REQUIRE(poi.xi*poi.xi + poi.eta*poi.eta == Approx(2.0*(del.L - del.G)).epsilon(1e-10));
 }
 
-TEST_CASE("Poincaré: p²+q² = 2(G−H)", "[poincare][invariant]") {
+TEST_CASE("Poincare: p^2+q^2 = 2(G-H)", "[poincare][invariant]") {
     auto coe = GENERATE(COE<double>{ISS}, COE<double>{SSO});
     const auto poi = coe_to_poincare(coe, MU);
     const auto del = coe_to_delaunay(coe, MU);
     REQUIRE(poi.p*poi.p + poi.q*poi.q == Approx(2.0*(del.G - del.H)).epsilon(1e-10));
 }
 
-TEST_CASE("Cart ↔ Poincaré round-trip", "[poincare][cart]") {
+TEST_CASE("Cart / Poincare round-trip", "[poincare][cart]") {
     const auto cart_ref = coe_to_cart(MOLNIYA, MU);
     const auto poi      = cart_to_poincare(cart_ref, MU);
     const auto cart2    = poincare_to_cart(poi, MU);
@@ -342,10 +344,10 @@ TEST_CASE("Cart ↔ Poincaré round-trip", "[poincare][cart]") {
 }
 
 // ============================================================================
-// Section 8 — Cross-conversions  (EQN ↔ MEE, NSK ↔ MEE)
+// Section 8 — Cross-conversions  (EQN / MEE, NSK / MEE)
 // ============================================================================
 
-TEST_CASE("EQN ↔ MEE cross-conversion", "[eqn][mee]") {
+TEST_CASE("EQN / MEE cross-conversion", "[eqn][mee]") {
     auto coe = GENERATE(COE<double>{ISS}, COE<double>{MOLNIYA});
     const auto mee  = coe_to_mee(coe);
     const auto eqn2 = mee_to_eqn(mee);
@@ -358,7 +360,7 @@ TEST_CASE("EQN ↔ MEE cross-conversion", "[eqn][mee]") {
     REQUIRE(ang_dist(mee2.L, mee.L) < TOL_ANGLE);
 }
 
-TEST_CASE("NSK ↔ MEE cross-conversion", "[nsk][mee]") {
+TEST_CASE("NSK / MEE cross-conversion", "[nsk][mee]") {
     auto coe = GENERATE(COE<double>{ISS}, COE<double>{SSO});
     const auto mee  = coe_to_mee(coe);
     const auto nsk2 = mee_to_nsk(mee);
@@ -372,7 +374,7 @@ TEST_CASE("NSK ↔ MEE cross-conversion", "[nsk][mee]") {
 // Section 9 — TLE helpers  (non-templated, double only)
 // ============================================================================
 
-TEST_CASE("TLE: classical_approx_to_tle → tle_to_classical_approx round-trip", "[tle]") {
+TEST_CASE("TLE: classical_approx_to_tle to tle_to_classical_approx round-trip", "[tle]") {
     auto coe = GENERATE(
         COE<double>{ISS},
         COE<double>{MOLNIYA},
@@ -381,7 +383,7 @@ TEST_CASE("TLE: classical_approx_to_tle → tle_to_classical_approx round-trip",
     const TLE    tle  = classical_approx_to_tle(coe, MU, 25544, 24, 1.0);
     const auto   coe2 = tle_to_classical_approx(tle);
 
-    // a: Kepler 3rd law from n (rev/day) → some numerical noise but < 1 km
+    // a: Kepler 3rd law from n (rev/day) to some numerical noise but < 1 km
     REQUIRE(coe2.a == Approx(coe.a).margin(1e3));
     REQUIRE(coe2.e == Approx(coe.e).margin(1e-6));
     REQUIRE(coe2.i == Approx(coe.i).margin(1e-7));
@@ -413,7 +415,7 @@ TEST_CASE("TLE: struct is not templated (double fields)", "[tle]") {
 // Section 10 — Array interface
 // ============================================================================
 
-TEST_CASE("COE ↔ array pack/unpack", "[array]") {
+TEST_CASE("COE / array pack/unpack", "[array]") {
     const auto arr  = coe_to_array(ISS);
     const auto coe2 = array_to_coe(arr);
     // Exact bit-identical round-trip — check equality directly
@@ -425,7 +427,7 @@ TEST_CASE("COE ↔ array pack/unpack", "[array]") {
     REQUIRE(coe2.nu    == ISS.nu);
 }
 
-TEST_CASE("MEE ↔ array pack/unpack", "[array]") {
+TEST_CASE("MEE / array pack/unpack", "[array]") {
     const auto mee  = coe_to_mee(ISS);
     const auto arr  = mee_to_array(mee);
     const auto mee2 = array_to_mee(arr);
@@ -435,7 +437,7 @@ TEST_CASE("MEE ↔ array pack/unpack", "[array]") {
     REQUIRE(mee2.L == mee.L);
 }
 
-TEST_CASE("Delaunay ↔ array pack/unpack", "[array]") {
+TEST_CASE("Delaunay / array pack/unpack", "[array]") {
     const auto del  = coe_to_delaunay(MOLNIYA, MU);
     const auto arr  = delaunay_to_array(del);
     const auto del2 = array_to_delaunay(arr);
@@ -449,18 +451,18 @@ TEST_CASE("Delaunay ↔ array pack/unpack", "[array]") {
 // Section 11 — float precision
 // ============================================================================
 
-TEST_CASE("Float: COE ↔ Cart round-trip (single precision)", "[float]") {
+TEST_CASE("Float: COE / Cart round-trip (single precision)", "[float]") {
     COE<float> coe_f{6.78e6f, 0.01f, 0.9f, 1.2f, 0.5f, 1.0f};
     constexpr float MU_F = 3.986004418e14f;
     const auto cart = coe_to_cart(coe_f, MU_F);
     const auto coe2 = cart_to_coe(cart, MU_F);
-    // Float accuracy: ~1e-6 relative → ~10 m on a, ~1e-4 on angles
+    // Float accuracy: ~1e-6 relative to ~10 m on a, ~1e-4 on angles
     REQUIRE(coe2.a == Approx(static_cast<double>(coe_f.a)).margin(1e2));
     REQUIRE(coe2.e == Approx(static_cast<double>(coe_f.e)).margin(1e-4));
     REQUIRE(coe2.i == Approx(static_cast<double>(coe_f.i)).margin(1e-4));
 }
 
-TEST_CASE("Float: MEE ↔ COE round-trip (single precision)", "[float]") {
+TEST_CASE("Float: MEE / COE round-trip (single precision)", "[float]") {
     COE<float> coe_f{7200e3f, 0.05f, 1.1f, 0.8f, 0.4f, 2.0f};
     const auto mee  = coe_to_mee(coe_f);
     const auto coe2 = mee_to_coe(mee);
@@ -472,7 +474,7 @@ TEST_CASE("Float: MEE ↔ COE round-trip (single precision)", "[float]") {
 // Section 12 — Angle wrap utilities
 // ============================================================================
 
-TEST_CASE("wrap_0_2pi: result always in [0, 2π)", "[utils]") {
+TEST_CASE("wrap_0_2pi: result always in [0, 2pi)", "[utils]") {
     for (double a : {-7.0, -PI<double>, -0.1, 0.0, PI<double>, 6.0, 10.0, 100.0}) {
         const double w = wrap_0_2pi(a);
         REQUIRE(w >= 0.0);
@@ -480,7 +482,7 @@ TEST_CASE("wrap_0_2pi: result always in [0, 2π)", "[utils]") {
     }
 }
 
-TEST_CASE("wrap_neg_pi_pi: result always in [-π, π)", "[utils]") {
+TEST_CASE("wrap_neg_pi_pi: result always in [-pi, pi)", "[utils]") {
     // The implementation maps to [-pi, pi)  (standard fmod convention)
     for (double a : {-7.0, -PI<double>, 0.0, PI<double>, 6.0, 10.0}) {
         const double w = wrap_neg_pi_pi(a);
