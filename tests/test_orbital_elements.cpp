@@ -474,19 +474,25 @@ TEST_CASE("Float: MEE / COE round-trip (single precision)", "[float]") {
 // Section 12 — Angle wrap utilities
 // ============================================================================
 
-TEST_CASE("wrap_0_2pi: result always in [0, 2pi)", "[utils]") {
-    for (double a : {-7.0, -PI<double>, -0.1, 0.0, PI<double>, 6.0, 10.0, 100.0}) {
+ 
+TEST_CASE("wrap_0_2pi maps to non-negative range below 2pi", "[utils]") {
+    static const double angles[] = {-7.0, -PI<double>, -0.1, 0.0, PI<double>, 6.0, 10.0, 100.0};
+    for (double a : angles) {
         const double w = wrap_0_2pi(a);
+        INFO("input=" << a);
         REQUIRE(w >= 0.0);
         REQUIRE(w <  TWO_PI<double>);
     }
 }
-
-TEST_CASE("wrap_neg_pi_pi: result always in [-pi, pi)", "[utils]") {
-    // The implementation maps to [-pi, pi)  (standard fmod convention)
-    for (double a : {-7.0, -PI<double>, 0.0, PI<double>, 6.0, 10.0}) {
+ 
+TEST_CASE("wrap_neg_pi_pi maps to half-open interval starting at minus pi", "[utils]") {
+    // fmod convention: maps to [-pi, pi)
+    static const double angles[] = {-7.0, -PI<double>, 0.0, PI<double>, 6.0, 10.0};
+    for (double a : angles) {
         const double w = wrap_neg_pi_pi(a);
+        INFO("input=" << a);
         REQUIRE(w >= -PI<double>);
         REQUIRE(w <   PI<double>);
     }
 }
+
